@@ -47,13 +47,16 @@ def preprocess_signal_nn(train_signal, val_signal, test_signal,
     val_signal = apply_bandpass(val_signal, lowcut, highcut, desired_fs)
     test_signal = apply_bandpass(test_signal, lowcut, highcut, desired_fs)
 
-    # Z-score normalization based on train set
-    mean = np.mean(train_signal, axis=-1, keepdims=True)
-    std = np.std(train_signal, axis=-1, keepdims=True) + 1e-6
-    
+    mean = train_signal.mean(axis=(0, 2), keepdims=True)   # shape (1, C, 1)
+    std  = train_signal.std(axis=(0, 2), keepdims=True)    # shape (1, C, 1)
+
+    # Avoid division by zero
+    std = np.where(std < 1e-8, 1.0, std)
+
+    # Apply normalization
     train_signal = (train_signal - mean) / std
-    val_signal = (val_signal - mean) / std
-    test_signal = (test_signal - mean) / std
+    val_signal   = (val_signal   - mean) / std
+    test_signal  = (test_signal  - mean) / std
 
     # Convert to tensors
     train_tensor = torch.tensor(train_signal, dtype=torch.float32)

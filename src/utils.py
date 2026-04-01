@@ -2,6 +2,8 @@ from torch.utils.data import Dataset
 import numpy as np
 import torch
 from scipy.signal import resample, butter, filtfilt, iirnotch
+from typing import Callable
+
 
 def butter_bandpass(lowcut, highcut, fs, order=4):
     nyq = 0.5 * fs
@@ -10,13 +12,16 @@ def butter_bandpass(lowcut, highcut, fs, order=4):
     b, a = butter(order, [low, high], btype='band')
     return b, a
 
+
 def apply_bandpass(signal, lowcut, highcut, fs, order=4):
     b, a = butter_bandpass(lowcut, highcut, fs, order)
     return filtfilt(b, a, signal, axis=-1)
 
+
 def apply_notch(signal, freq, fs, Q=35):
     b, a = iirnotch(freq / (0.5*fs), Q)
     return filtfilt(b, a, signal, axis=-1)
+
 
 def preprocess_signal_nn(train_signal, val_signal, test_signal, 
                       desired_fs=256,
@@ -78,54 +83,35 @@ def preprocess_signal_nn(train_signal, val_signal, test_signal,
     return train_tensor, val_tensor, test_tensor
 
 
-class SeizureDataset(Dataset):
-    """
-    Super basic dataset class for the SeizeIT2 dataset.
-    """
-    def __init__(self, eeg: np.ndarray, ecg: np.ndarray, labels: np.ndarray, eeg_transform=None, ecg_transform=None):
-        self.eeg = eeg
-        self.ecg = ecg
-        self.labels = labels
 
-        self.eeg_transform = eeg_transform
-        self.ecg_transform = ecg_transform
+class SupervisedMultimodalDataset(Dataset):
+    """
+    A flexible supervised multimodal dataset class.
+    modalities: dict[str, np.ndarray | torch.Tensor], each shape (N, C, T)
+    labels: np.ndarray | torch.Tensor, shape (N,)
+    transform_dict: dict[str, callable or None]
+    """
+    def __init__(self, modalities: dict[str, np.ndarray | torch.Tensor],
+                 labels: np.ndarray | torch.Tensor,
+                 transform_dict: dict[str, Callable] | None = None):
+
+        self.modalities: dict[str, np.ndarray | torch.Tensor] = modalities
+        self.labels: np.ndarray | torch.Tensor = labels
+        self.transform_dict: dict[str, Callable] | None = transform_dict or None
 
     def __len__(self):
-        return len(self.eeg)
+        return self.labels.shape[0]
 
     def __getitem__(self, idx: int):  # ty:ignore[invalid-method-override]
-        eeg = self.eeg[idx]
-        ecg = self.ecg[idx]
-        labels = self.labels[idx]
+        sample: dict[str, torch.Tensor] = {}
 
-        if self.eeg_transform:
-            eeg = self.eeg_transform(eeg)
+        for name, data in self.modalities.items():
+            x = data[idx]  # extract sample for this modality
 
-        if self.ecg_transform:
-            ecg = self.ecg_transform(ecg)
+            # apply transform if provided
+            if self.transform_dict and (name in self.transform_dict) and (self.transform_dict[name] is not None):
+                x = self.transform_dict[name](x)
 
-        return ecg, eeg, labels
+            sample[name] = torch.tensor(data=x, dtype=torch.float32)
 
-
-
-class UnimodalSeizureDataset(Dataset):
-    """
-    Super basic dataset class for the SeizeIT2 dataset.
-    """
-    def __init__(self, signal: np.ndarray, labels: np.ndarray, transform=None):
-        self.signal = signal
-        self.labels = labels
-
-        self.transform = transform
-
-    def __len__(self):
-        return len(self.signal)
-
-    def __getitem__(self, idx: int):  # ty:ignore[invalid-method-override]
-        signal = self.signal[idx]
-        labels = self.labels[idx]
-
-        if self.transform:
-            signal = self.transform(signal)
-
-        return signal, labels
+        return sample, torch.tensor(data=self.labels[idx], dtype=torch.float32)

@@ -1,7 +1,7 @@
 from torch.utils.data import Dataset
 import numpy as np
 import torch
-from scipy.signal import resample, butter, filtfilt
+from scipy.signal import resample, butter, filtfilt, iirnotch
 
 def butter_bandpass(lowcut, highcut, fs, order=4):
     nyq = 0.5 * fs
@@ -14,9 +14,15 @@ def apply_bandpass(signal, lowcut, highcut, fs, order=4):
     b, a = butter_bandpass(lowcut, highcut, fs, order)
     return filtfilt(b, a, signal, axis=-1)
 
+def apply_notch(signal, freq, fs, Q=35):
+    b, a = iirnotch(freq / (0.5*fs), Q)
+    return filtfilt(b, a, signal, axis=-1)
+
 def preprocess_signal_nn(train_signal, val_signal, test_signal, 
                       desired_fs=256,
-                      lowcut=0.5, highcut=50):
+                      lowcut=0.5, 
+                      highcut=60,
+                      notch_freq=50):
     """
     Preprocess EEG/ECG signals for neural network models:
     - Resample to desired sampling rate
@@ -27,6 +33,7 @@ def preprocess_signal_nn(train_signal, val_signal, test_signal,
     - train_signal, val_signal, test_signal: np.arrays of shape (channels, time)
     - desired_fs: target sampling rate
     - lowcut, highcut: bandpass cutoff frequencies
+    - notch_freq: notch frequency
     Returns:
     - train_tensor, val_tensor, test_tensor: torch tensors of same shape
     """
@@ -34,9 +41,9 @@ def preprocess_signal_nn(train_signal, val_signal, test_signal,
     def resample_signal(signal, target_len):
         return resample(signal, target_len, axis=-1)
     
-    train_len = int(train_signal.shape[-1] * desired_fs / desired_fs)  # identity if already same
-    val_len = int(val_signal.shape[-1] * desired_fs / desired_fs)
-    test_len = int(test_signal.shape[-1] * desired_fs / desired_fs)
+    train_len = int(train_signal.shape[-1] * desired_fs / 256.0)  # identity if already same
+    val_len = int(val_signal.shape[-1] * desired_fs / 256.0)
+    test_len = int(test_signal.shape[-1] * desired_fs / 256.0)
     
     train_signal = resample_signal(train_signal, train_len)
     val_signal = resample_signal(val_signal, val_len)
@@ -46,6 +53,11 @@ def preprocess_signal_nn(train_signal, val_signal, test_signal,
     train_signal = apply_bandpass(train_signal, lowcut, highcut, desired_fs)
     val_signal = apply_bandpass(val_signal, lowcut, highcut, desired_fs)
     test_signal = apply_bandpass(test_signal, lowcut, highcut, desired_fs)
+
+    # Notch filter
+    train_signal = apply_notch(train_signal, notch_freq, desired_fs)
+    val_signal = apply_notch(val_signal, notch_freq, desired_fs)
+    test_signal = apply_notch(test_signal, notch_freq, desired_fs)
 
     mean = train_signal.mean(axis=(0, 2), keepdims=True)   # shape (1, C, 1)
     std  = train_signal.std(axis=(0, 2), keepdims=True)    # shape (1, C, 1)

@@ -7,7 +7,7 @@ Multimodal approaches to seizure detection on SeizeIT2 dataset
 For the midterm proposal, we need to reimplement current SOTA models. First, we should do baseline unimodal models. 
 
 - https://arxiv.org/abs/2502.01224 (original dataset paper)
-    - [ ] implement ChronoNet (multimodal)
+    - [ ] implement ChronoNet (unimodal)
     - [ ] implement SVM (multimodal)
 
 > unsure on actual AUCs of the models in the paper

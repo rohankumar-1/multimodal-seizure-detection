@@ -59,8 +59,9 @@ def train_model_unimodal(model, trainloader, valloader, epochs, pos_weight=4.0, 
         model.train()
         pbar = tqdm(trainloader, desc=f"Epoch {ep}")
 
-        for m, y in pbar:
-            m = m.to(device), y.to(device).float()
+        for m, _, y in pbar:
+            m = m.to(device)
+            y = y.to(device).float()
             pred = model(m).squeeze()
             loss = bce(pred, y)
 
@@ -72,8 +73,9 @@ def train_model_unimodal(model, trainloader, valloader, epochs, pos_weight=4.0, 
         model.eval()
         preds, trues = [], []
         with torch.no_grad():
-            for m, y in valloader:
+            for m, _, y in valloader:
                 m = m.to(device)
+                y = y.to(device).float()
                 pred = model(m).squeeze().cpu()
                 preds.append(pred)
                 trues.append(y)

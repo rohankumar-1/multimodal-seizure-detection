@@ -103,16 +103,15 @@ class ChronoNet(nn.Module):
         self.gru = ResidualGRU(input_size=filters * 3, hidden_size=32)
 
         # classifier
-        self.fc = nn.Linear(32, 2)
+        self.fc = nn.Linear(32, 1)
 
-    def forward(self, x):
-        # x shape: (B, T, C) → convert to (B, C, T)
-        x = x.permute(0, 2, 1)
+    def forward(self, **kwargs):    
+        x = kwargs.get("eeg")
 
         x = self.block1(x)
         x = self.block2(x)
         x = self.block3(x)
 
         g = self.gru(x)
-        out = F.softmax(self.fc(g), dim=-1)
+        out = self.fc(g)
         return out

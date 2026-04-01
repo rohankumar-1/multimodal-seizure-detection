@@ -11,8 +11,7 @@ from .eval import (
 )
 
 from .train import (
-    train_model_unimodal,
-    train_model_multimodal,
+    train_model,
 )
 
 __all__ = [

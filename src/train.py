@@ -1,89 +1,79 @@
 import torch
 import torch.nn as nn
 from tqdm import tqdm
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_auc_score, accuracy_score, mean_squared_error
 
-def train_model_multimodal(model, trainloader, valloader, epochs, pos_weight=4.0, lr=1e-4, device='cuda'):
+
+def train_supervised_nn(model, trainloader, valloader, epochs, task='classification', pos_weight=4.0, lr=1e-4, device='cpu'):
     """
-    Trains a general multimodal neural network.
+    Supervised training of a general neural network model. Can handle both unimodal and multimodal data. 
+    Inputs:
+        model: pytorch-based neural network
+        trainloader: DataLoader for training data, returns dict of modalites and labels
+        valloader: DataLoader for validation data, returns dict of modalites and labels
+        epochs: number of epochs to train for
+        task: 'classification', 'regression', or 'multiclass'
+        pos_weight: positive weight for the BCE loss
+        lr: learning rate
+        device: 'cuda' or 'cpu'
     """
+
     model = model.to(device)
     optim = torch.optim.Adam(model.parameters(), lr=lr)
-    pos_w = torch.tensor([pos_weight], device=device)
-    bce = nn.BCEWithLogitsLoss(pos_weight=pos_w)
+
+    if task == 'classification':
+        loss_fn = nn.BCEWithLogitsLoss(pos_weight=torch.tensor(data=[pos_weight], device=device))
+    elif task == 'regression':
+        loss_fn = nn.MSELoss()
+    elif task == 'multiclass':
+        loss_fn = loss_fn = nn.CrossEntropyLoss()
 
     for ep in range(1, epochs + 1):
         model.train()
-        pbar = tqdm(trainloader, desc=f"Epoch {ep}")
 
-        for m1, m2, y in pbar:
-            m1, m2, y = m1.to(device), m2.to(device), y.to(device).float()
-            pred = model(m1, m2).squeeze()
-            loss = bce(pred, y)
+        for batch, y in tqdm(trainloader, desc=f"Epoch {ep}"):
+            y = y.float().to(device)
+
+            # Move all modalities to device dynamically
+            batch = {k: v.to(device) for k, v in batch.items()}
+
+            # Forward pass (model expects **kwargs)
+            outputs = model(**batch)
+            loss = loss_fn(outputs, y)
 
             optim.zero_grad()
             loss.backward()
             optim.step()
 
-        # ---- Validation AUC ----
+        # ---- Validation ----
         model.eval()
         preds, trues = [], []
+
+        model.eval()
+        preds, trues = [], []
+
         with torch.no_grad():
-            for m1, m2, y in valloader:
-                m1, m2 = m1.to(device), m2.to(device)
-                pred = model(m1, m2).squeeze().cpu()
+            for batch, y in valloader:
+                batch = {k: v.to(device) for k, v in batch.items()}
+                pred = model(**batch).cpu()
+
                 preds.append(pred)
                 trues.append(y)
 
-        preds = torch.cat(preds).numpy()
-        trues = torch.cat(trues).numpy()
-        auc = roc_auc_score(trues, preds)
+        preds = torch.cat(preds)
+        trues = torch.cat(trues)
 
-        print(f"Epoch {ep} | Val AUC: {auc:.4f}")
+        # --- Task-specific metrics ---
+        if task == 'classification':  # binary
+            auc = roc_auc_score(trues.numpy(), preds.numpy())
+            print(f"Epoch {ep} | Val AUC: {auc:.4f}")
 
-    return model
+        elif task == 'multiclass':
+            acc = accuracy_score(trues.numpy(), preds.argmax(dim=1).numpy())
+            print(f"Epoch {ep} | Val Acc: {acc:.4f}")
 
-
-
-
-def train_model_unimodal(model, trainloader, valloader, epochs, pos_weight=4.0, lr=1e-4, device='cuda'):
-    """
-    Trains a general unimodal neural network.
-    """
-    model = model.to(device)
-    optim = torch.optim.Adam(model.parameters(), lr=lr)
-    pos_w = torch.tensor([pos_weight], device=device)
-    bce = nn.BCEWithLogitsLoss(pos_weight=pos_w)
-
-    for ep in range(1, epochs + 1):
-        model.train()
-        pbar = tqdm(trainloader, desc=f"Epoch {ep}")
-
-        for m, _, y in pbar:
-            m = m.to(device)
-            y = y.to(device).float()
-            pred = model(m).squeeze()
-            loss = bce(pred, y)
-
-            optim.zero_grad()
-            loss.backward()
-            optim.step()
-
-        # ---- Validation AUC ----
-        model.eval()
-        preds, trues = [], []
-        with torch.no_grad():
-            for m, _, y in valloader:
-                m = m.to(device)
-                y = y.to(device).float()
-                pred = model(m).squeeze().cpu()
-                preds.append(pred)
-                trues.append(y)
-
-        preds = torch.cat(preds).numpy()
-        trues = torch.cat(trues).numpy()
-        auc = roc_auc_score(trues, preds)
-
-        print(f"Epoch {ep} | Val AUC: {auc:.4f}")
+        elif task == 'regression':
+            mse = mean_squared_error(trues.numpy(), preds.numpy())
+            print(f"Epoch {ep} | Val MSE: {mse:.4f}")
 
     return model

@@ -1,10 +1,37 @@
 import torch
 from torch.utils.data import DataLoader
 import numpy as np
-from sklearn.metrics import roc_auc_score, accuracy_score, f1_score, precision_score, recall_score
+from sklearn.metrics import roc_auc_score, accuracy_score, f1_score, precision_score, recall_score, roc_curve
 
 
-def evaluate_nn(model, data_loader: DataLoader, device: str = "cpu") -> dict:
+
+def find_best_threshold(model, valloader: DataLoader, device: str = "cpu") -> float:
+    """
+    Find the best classificationthreshold for a neural network model. Considers tpr - fpr.
+    """
+    model.eval()
+    
+    all_labels = []
+    all_probs = []
+
+    with torch.no_grad():
+        for batch, y in valloader:
+            batch = {k: v.to(device) for k, v in batch.items()}
+            outputs = model(**batch)
+            probs = torch.sigmoid(outputs)
+            all_probs.append(probs)
+            all_labels.append(y)
+
+    all_probs = torch.cat(all_probs)
+    all_labels = torch.cat(all_labels)
+
+    fpr, tpr, thresholds = roc_curve(all_labels, all_probs)
+    best_threshold = thresholds[np.argmax(tpr - fpr)]  # best threshold is where tpr - fpr is maximized
+
+    return best_threshold
+
+
+def evaluate_nn(model, data_loader: DataLoader, threshold=0.5, device: str = "cpu") -> dict:
     """
     Evaluate a neural network model on ECG+EEG data.
     """
@@ -15,25 +42,20 @@ def evaluate_nn(model, data_loader: DataLoader, device: str = "cpu") -> dict:
     all_probs = []
 
     with torch.no_grad():
-        for ecg, eeg, labels in data_loader:
-            ecg = ecg.to(device)
-            eeg = eeg.to(device)
-            labels = labels.to(device)
+        for batch, y in data_loader:
+            batch = {k: v.to(device) for k, v in batch.items()}
+            outputs = model(**batch)
+            probs = torch.sigmoid(outputs)
+            preds = probs > threshold
 
-            outputs = model(ecg, eeg)        # shape (B, 2)
-            probs = torch.softmax(outputs, dim=1)[:, 1]  # probability of class=1
-            preds = torch.argmax(outputs, dim=1)
+            all_labels.append(y)
+            all_preds.append(preds)
+            all_probs.append(probs)
 
-            all_labels.append(labels.cpu().numpy())
-            all_preds.append(preds.cpu().numpy())
-            all_probs.append(probs.cpu().numpy())
+    all_labels = torch.cat(all_labels).numpy()
+    all_preds = torch.cat(all_preds).numpy()
+    all_probs = torch.cat(all_probs).numpy()
 
-    # Concatenate across batches
-    all_labels = np.concatenate(all_labels)
-    all_preds = np.concatenate(all_preds)
-    all_probs = np.concatenate(all_probs)
-
-    # Compute metrics
     auc = roc_auc_score(all_labels, all_probs)
     acc = accuracy_score(all_labels, all_preds)
     f1 = f1_score(all_labels, all_preds)

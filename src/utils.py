@@ -106,3 +106,26 @@ class SeizureDataset(Dataset):
 
         return ecg, eeg, labels
 
+
+
+class UnimodalSeizureDataset(Dataset):
+    """
+    Super basic dataset class for the SeizeIT2 dataset.
+    """
+    def __init__(self, signal: np.ndarray, labels: np.ndarray, transform=None):
+        self.signal = signal
+        self.labels = labels
+
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.signal)
+
+    def __getitem__(self, idx: int):  # ty:ignore[invalid-method-override]
+        signal = self.signal[idx]
+        labels = self.labels[idx]
+
+        if self.transform:
+            signal = self.transform(signal)
+
+        return signal, labels

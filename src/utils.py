@@ -2,7 +2,7 @@ from torch.utils.data import Dataset
 import numpy as np
 import torch
 from scipy.signal import resample, butter, filtfilt, iirnotch
-from typing import Callable
+from typing import Callable, Union
 
 
 def butter_bandpass(lowcut, highcut, fs, order=4):
@@ -91,13 +91,13 @@ class SupervisedMultimodalDataset(Dataset):
     labels: np.ndarray | torch.Tensor, shape (N,)
     transform_dict: dict[str, callable or None]
     """
-    def __init__(self, modalities: dict[str, np.ndarray | torch.Tensor],
-                 labels: np.ndarray | torch.Tensor,
-                 transform_dict: dict[str, Callable] | None = None):
+    def __init__(self, modalities: dict,
+                 labels,
+                 transform_dict: Union[dict, None] = None):
 
-        self.modalities: dict[str, np.ndarray | torch.Tensor] = modalities
-        self.labels: np.ndarray | torch.Tensor = labels
-        self.transform_dict: dict[str, Callable] | None = transform_dict or None
+        self.modalities: dict = modalities
+        self.labels = labels
+        self.transform_dict: Union[dict, None] = transform_dict or None
 
     def __len__(self):
         return self.labels.shape[0]
@@ -112,6 +112,6 @@ class SupervisedMultimodalDataset(Dataset):
             if self.transform_dict and (name in self.transform_dict) and (self.transform_dict[name] is not None):
                 x = self.transform_dict[name](x)
 
-            sample[name] = torch.tensor(data=x, dtype=torch.float32)
+            sample[name] = x.float()
 
-        return sample, torch.tensor(data=self.labels[idx], dtype=torch.float32)
+        return sample, self.labels[idx]

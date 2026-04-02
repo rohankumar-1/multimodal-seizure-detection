@@ -1,3 +1,9 @@
+# project-specific
+weights/
+data/
+*.npz
+*.pt
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

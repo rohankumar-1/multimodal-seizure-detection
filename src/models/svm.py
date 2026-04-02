@@ -1,7 +1,7 @@
 """ Wrapper code for basic SVM models """
 
 from sklearn.svm import SVC
-from sklearn.metrics import accuracy_score, f1_score, classification_report
+from sklearn.metrics import accuracy_score, f1_score, classification_report, roc_auc_score, precision_score, recall_score
 import joblib
 
 class SVMModel:
@@ -25,15 +25,21 @@ class SVMModel:
 
     def evaluate(self, X_test, y_test, verbose=True):
         y_pred = self.predict(X_test)
+        y_prob = self.predict_proba(X_test)[:, 1]
+        auc = roc_auc_score(y_test, y_prob)
         acc = accuracy_score(y_test, y_pred)
         f1 = f1_score(y_test, y_pred, average="weighted")
+        precision = precision_score(y_test, y_pred, average="weighted")
+        recall = recall_score(y_test, y_pred, average="weighted")
 
         if verbose:
-            print("Accuracy:", acc)
-            print("F1 Score:", f1)
-            print("\nClassification Report:\n", classification_report(y_test, y_pred))
+            print(f"AUC: {auc:.4f}")
+            print(f"Accuracy: {acc:.4f}")
+            print(f"F1 Score: {f1:.4f}")
+            print(f"Precision: {precision:.4f}")
+            print(f"Recall: {recall:.4f}")
 
-        return {"accuracy": acc, "f1": f1}
+        return {"auc": auc, "accuracy": acc, "f1": f1, "precision": precision, "recall": recall}
 
     def save(self, path="svm_model.joblib"):
         joblib.dump(self.model, path)

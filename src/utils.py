@@ -115,3 +115,4 @@ class SupervisedMultimodalDataset(Dataset):
             sample[name] = x.float()
 
         return sample, self.labels[idx]
+

@@ -5,3 +5,8 @@ scipy
 scikit-learn
 torch
 torchvision
+h5py
+mne
+pandas
+tqdm
+pyarrow

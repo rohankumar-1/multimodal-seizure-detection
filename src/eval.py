@@ -1,7 +1,10 @@
 import torch
 from torch.utils.data import DataLoader
 import numpy as np
+from tqdm import tqdm
 from sklearn.metrics import roc_auc_score, accuracy_score, f1_score, precision_score, recall_score, roc_curve
+
+import matplotlib.pyplot as plt
 
 
 
@@ -61,6 +64,7 @@ def evaluate_nn(model, data_loader: DataLoader, threshold=0.5, device: str = "cp
     f1 = f1_score(all_labels, all_preds)
     precision = precision_score(all_labels, all_preds)
     recall = recall_score(all_labels, all_preds)
+    fpr, tpr, thresholds = roc_curve(all_labels, all_probs)
 
     return {
         "auc_score": auc,
@@ -68,6 +72,9 @@ def evaluate_nn(model, data_loader: DataLoader, threshold=0.5, device: str = "cp
         "f1": f1,
         "precision": precision,
         "recall": recall,
+        "fpr": fpr,
+        "tpr": tpr,
+        "thresholds": thresholds,
     }
 
 
@@ -104,6 +111,7 @@ def evaluate_svm(model, data_loader: DataLoader, device: str = "cpu") -> dict:
     f1 = f1_score(all_labels, all_preds)
     precision = precision_score(all_labels, all_preds)
     recall = recall_score(all_labels, all_preds)
+    fpr, tpr, thresholds = roc_curve(all_labels, all_probs)
 
     return {
         "auc_score": auc,
@@ -111,5 +119,68 @@ def evaluate_svm(model, data_loader: DataLoader, device: str = "cpu") -> dict:
         "f1": f1,
         "precision": precision,
         "recall": recall,
+        "fpr": fpr,
+        "tpr": tpr,
+        "thresholds": thresholds,
     }
+
+
+def evaluate_matrixprofile(mp, preprocess_fn, data_paths: list[str] = [], target='binary_label', plot_run=True) -> dict:
+    all_labels = []
+    all_preds = []
+    all_probs = []
+
+    for data_path in tqdm(data_paths):
+        data = np.load(data_path, allow_pickle=True)
+        ecg = data['ecg']
+        target = data[target]
+
+        ecg = preprocess_fn(ecg)
+
+        mp = mp.predict(ecg)
+
+        all_labels.append(target)
+        all_preds.append(mp['events'])
+        all_probs.append(mp['mp'])
+
+
+    all_labels = np.concatenate(all_labels)
+    all_preds = np.concatenate(all_preds)
+
+    auc = roc_auc_score(all_labels, all_probs)
+    acc = accuracy_score(all_labels, all_preds)
+    f1 = f1_score(all_labels, all_preds)
+    precision = precision_score(all_labels, all_preds)
+    recall = recall_score(all_labels, all_preds)
+    fpr, tpr, thresholds = roc_curve(all_labels, all_probs)
+
+    return {
+        "auc_score": auc,
+        "accuracy": acc,
+        "f1": f1,
+        "precision": precision,
+        "recall": recall,
+        "fpr": fpr,
+        "tpr": tpr,
+        "thresholds": thresholds,
+    }
+
+
+def plot_run_results(run_results: dict):
+    """ plots run results for multiple models """
+    for model_name, results in run_results.items():
+        plt.plot(results['fpr'], results['tpr'], label=model_name)
+    plt.legend()
+    plt.show()
+
+
+def plot_roc_curve(all_labels: dict[str, np.ndarray], all_probs: dict[str, np.ndarray]):
+    """ plots ROC curves for multiple models """
+    for model_name, labels in all_labels.items():
+        fpr, tpr, thresholds = roc_curve(labels, all_probs[model_name])
+        plt.plot(fpr, tpr, label=model_name)
+    plt.legend()
+    plt.show()
+
+
 

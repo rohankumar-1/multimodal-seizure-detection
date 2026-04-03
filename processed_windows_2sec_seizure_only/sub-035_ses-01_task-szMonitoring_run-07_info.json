@@ -1,0 +1,13 @@
+{
+  "sfreq": 256.0,
+  "eeg_channels": [
+    "BTEright SD",
+    "CROSStop SD"
+  ],
+  "ecg_channels": [
+    "ECG SD"
+  ],
+  "num_windows": 1056,
+  "run_id": "sub-035_run-07",
+  "patient_id": "sub-035"
+}

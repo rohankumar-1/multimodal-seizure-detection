@@ -6,11 +6,18 @@ from sklearn.metrics import roc_auc_score, accuracy_score, f1_score, precision_s
 
 import matplotlib.pyplot as plt
 
+from typing import Literal
 
+VALIDATION_METRICS = Literal['youdens_j', 'accuracy', 'f1', 'precision', 'recall']
 
-def find_best_threshold(model, valloader: DataLoader, device: str = "cpu") -> float:
+def find_best_threshold(model, valloader: DataLoader, metric: VALIDATION_METRICS = 'youdens_j', device: str = "cpu") -> float:
     """
-    Find the best classificationthreshold for a neural network model. Considers tpr - fpr.
+    Find the best classification threshold for a neural network model.
+    Inputs:
+        model: pytorch-based neural network
+        valloader: DataLoader for validation data, returns dict of modalities and labels
+        metric: metric to use for finding the best threshold
+        device: 'cuda' or 'cpu'
     """
     model.eval()
     
@@ -21,17 +28,37 @@ def find_best_threshold(model, valloader: DataLoader, device: str = "cpu") -> fl
         for batch, y in valloader:
             batch = {k: v.to(device) for k, v in batch.items()}
             outputs = model(**batch)
-            probs = torch.sigmoid(outputs)
-            all_probs.append(probs)
-            all_labels.append(y)
+            probs = torch.sigmoid(outputs).view(-1)  # flatten in case of shape []
+            all_probs.append(probs.cpu())
+            all_labels.append(y.view(-1).cpu())
 
-    all_probs = torch.cat(all_probs)
-    all_labels = torch.cat(all_labels)
+    all_probs = torch.cat(all_probs).numpy()
+    all_labels = torch.cat(all_labels).numpy()
 
     fpr, tpr, thresholds = roc_curve(all_labels, all_probs)
-    best_threshold = thresholds[np.argmax(tpr - fpr)]  # best threshold is where tpr - fpr is maximized
 
-    return best_threshold
+    # Compute best threshold based on metric
+    if metric == 'youdens_j':
+        best_threshold = thresholds[np.argmax(tpr - fpr)]
+    else:
+        best_score = -np.inf
+        best_threshold = 0.5
+        for thr in thresholds:
+            preds = (all_probs >= thr).astype(int)
+            if metric == 'accuracy':
+                score = accuracy_score(all_labels, preds)
+            elif metric == 'f1':
+                score = f1_score(all_labels, preds)
+            elif metric == 'precision':
+                score = precision_score(all_labels, preds)
+            elif metric == 'recall':
+                score = recall_score(all_labels, preds)
+                
+            if score > best_score:
+                best_score = score
+                best_threshold = thr
+
+    return float(best_threshold)
 
 
 def evaluate_nn(model, data_loader: DataLoader, threshold=0.5, device: str = "cpu") -> dict:

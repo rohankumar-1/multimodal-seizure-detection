@@ -42,6 +42,17 @@ def preprocess_signal_nn(train_signal, val_signal, test_signal,
     Returns:
     - train_tensor, val_tensor, test_tensor: torch tensors of same shape
     """
+    
+    # Bandpass filter
+    train_signal = apply_bandpass(train_signal, lowcut, highcut, 256.0)
+    val_signal = apply_bandpass(val_signal, lowcut, highcut, 256.0)
+    test_signal = apply_bandpass(test_signal, lowcut, highcut, 256.0)
+
+    # Notch filter
+    train_signal = apply_notch(train_signal, notch_freq, 256.0)
+    val_signal = apply_notch(val_signal, notch_freq, 256.0)
+    test_signal = apply_notch(test_signal, notch_freq, 256.0)
+
     # Resample all signals
     def resample_signal(signal, target_len):
         return resample(signal, target_len, axis=-1)
@@ -49,20 +60,10 @@ def preprocess_signal_nn(train_signal, val_signal, test_signal,
     train_len = int(train_signal.shape[-1] * desired_fs / 256.0)  # identity if already same
     val_len = int(val_signal.shape[-1] * desired_fs / 256.0)
     test_len = int(test_signal.shape[-1] * desired_fs / 256.0)
-    
+
     train_signal = resample_signal(train_signal, train_len)
     val_signal = resample_signal(val_signal, val_len)
     test_signal = resample_signal(test_signal, test_len)
-
-    # Bandpass filter
-    train_signal = apply_bandpass(train_signal, lowcut, highcut, desired_fs)
-    val_signal = apply_bandpass(val_signal, lowcut, highcut, desired_fs)
-    test_signal = apply_bandpass(test_signal, lowcut, highcut, desired_fs)
-
-    # Notch filter
-    train_signal = apply_notch(train_signal, notch_freq, desired_fs)
-    val_signal = apply_notch(val_signal, notch_freq, desired_fs)
-    test_signal = apply_notch(test_signal, notch_freq, desired_fs)
 
     mean = train_signal.mean(axis=(0, 2), keepdims=True)   # shape (1, C, 1)
     std  = train_signal.std(axis=(0, 2), keepdims=True)    # shape (1, C, 1)
@@ -100,7 +101,7 @@ class SupervisedMultimodalDataset(Dataset):
         self.transform_dict: Union[dict, None] = transform_dict or None
 
     def __len__(self):
-        return self.labels.shape[0]
+        return min(self.labels.shape[0], *[data.shape[0] for data in self.modalities.values()])
 
     def __getitem__(self, idx: int):  # ty:ignore[invalid-method-override]
         sample: dict[str, torch.Tensor] = {}

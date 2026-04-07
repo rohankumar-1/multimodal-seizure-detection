@@ -1,3 +1,4 @@
+import os
 import torch
 import torch.nn as nn
 from tqdm import tqdm
@@ -26,6 +27,10 @@ def train_supervised_nn(
         lr: learning rate
         device: 'cuda' or 'cpu'
     """
+
+    if checkpoint_path and not os.path.exists(os.path.dirname(checkpoint_path)):
+        os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
+
 
     model = model.to(device)
     optim = torch.optim.Adam(model.parameters(), lr=lr)
@@ -65,17 +70,17 @@ def train_supervised_nn(
 
         with torch.no_grad():
             for batch, y in valloader:
-                batch = {k: v.to(device) for k, v in batch.items()}
                 y = y.float().to(device)
+                batch = {k: v.to(device) for k, v in batch.items()}
 
-                out = model(**batch).squeeze()
+                out = model(**batch).view(-1)
                 val_losses.append(loss_fn(out, y).item())
 
                 preds.append(out.cpu())
                 trues.append(y.cpu())
 
         # compute validation loss (early stopping metric)
-        val_loss = sum(val_losses) / len(val_losses)
+        val_loss = sum(val_losses) / (len(val_losses) + 1e-8)
 
         preds = torch.cat(preds)
         trues = torch.cat(trues)
@@ -98,12 +103,12 @@ def train_supervised_nn(
             best_val_loss = val_loss
             bad_epochs = 0
 
-            torch.save(
-                model.state_dict(),
-                f=checkpoint_path if checkpoint_path else f"weights/checkpoint_{ep}.pth",
-            )
-            print(f"Saved new best model at epoch {ep} (loss={val_loss:.4f})")
-
+            if checkpoint_path:
+                torch.save(
+                    model.state_dict(),
+                    f=checkpoint_path,
+                )
+                print(f"Saved new best model at epoch {ep} (loss={val_loss:.4f})")
         else:
             bad_epochs += 1
             if bad_epochs >= patience:

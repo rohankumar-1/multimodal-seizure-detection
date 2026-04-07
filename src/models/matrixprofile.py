@@ -24,6 +24,31 @@ class MatrixProfile:
         clusters.append(cur)
         return np.array([int(np.mean(c)) for c in clusters if len(c) >= self.min_cluster])
 
+    def mp_to_window_scores(self, mp_scores, window_length):
+        """
+        Convert matrix profile scores (length T-W+1) into non-overlapping window scores.
+        Each window gets the average of all MP scores that fall into it.
+
+        Args:
+            mp_scores: np.array, length T-W+1
+            window_length: int, size of the window W
+
+        Returns:
+            window_scores: np.array, length ceil((T-W+1)/W)
+        """
+        num_scores = len(mp_scores)
+        # Compute number of full windows
+        num_windows = int(np.ceil(num_scores / window_length))
+
+        window_scores = np.zeros(num_windows)
+
+        for i in range(num_windows):
+            start = i * window_length
+            end = min(start + window_length, num_scores)
+            window_scores[i] = mp_scores[start:end].mean()
+
+        return window_scores
+
     def predict(self, ecg: np.ndarray):
         # 1) Matrix Profile
         mp = stumpy.stump(ecg, self.m)[:, 0]
@@ -44,4 +69,4 @@ class MatrixProfile:
         # 4) Temporal clustering
         events = self._clusters(disc)
 
-        return {"mp": mp, "discords": disc, "events": events}
+        return {"mp": mp, "scores": self.mp_to_window_scores(mp, self.m), "discords": disc, "events": events}

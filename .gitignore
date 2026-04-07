@@ -3,6 +3,11 @@ weights/
 data/
 *.npz
 *.pt
+.DS_Store
+*.h5
+*.parquet
+*.csv
+*.npy
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

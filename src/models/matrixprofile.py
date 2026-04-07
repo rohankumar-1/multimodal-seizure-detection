@@ -12,6 +12,7 @@ class MatrixProfile:
         self.max_gap = max_gap
 
     def _clusters(self, idxs):
+        """ find clusters of indices separated by at least min_sep """
         if len(idxs) == 0: 
             return np.array([])
         clusters, cur = [], [idxs[0]]
@@ -25,48 +26,85 @@ class MatrixProfile:
         return np.array([int(np.mean(c)) for c in clusters if len(c) >= self.min_cluster])
 
     def mp_to_window_scores(self, mp_scores, window_length):
-        """
-        Convert matrix profile scores (length T-W+1) into non-overlapping window scores.
-        Each window gets the average of all MP scores that fall into it.
-
-        Args:
-            mp_scores: np.array, length T-W+1
-            window_length: int, size of the window W
-
-        Returns:
-            window_scores: np.array, length ceil((T-W+1)/W)
-        """
+        """ takes matrix profile scores and returns window scores (averages of scores in each window), interpret as prob of anomaly"""
         num_scores = len(mp_scores)
-        # Compute number of full windows
         num_windows = int(np.ceil(num_scores / window_length))
-
         window_scores = np.zeros(num_windows)
-
         for i in range(num_windows):
             start = i * window_length
             end = min(start + window_length, num_scores)
             window_scores[i] = mp_scores[start:end].mean()
-
         return window_scores
 
-    def predict(self, ecg: np.ndarray):
-        # 1) Matrix Profile
-        mp = stumpy.stump(ecg, self.m)[:, 0]
+    def predict(self, chunks: np.ndarray):
+        """
+        chunks: shape (num_chunks, chunk_size)
+        Returns global MP and correct global window scores.
+        """
+        all_mp = []
+        all_discords = []
+        all_events = []
 
-        # 2) Discord candidates (percentile threshold)
-        thr = np.percentile(mp, self.percentile)
-        cand = np.where(mp >= thr)[0]
+        offset = 0
+        for chunk in chunks:
+            mp = stumpy.stump(chunk, self.m)[:, 0]
 
-        # 3) Overlap filtering
-        if len(cand) == 0:
-            return {"mp": mp, "discords": np.array([]), "events": np.array([])}
-        disc = [cand[0]]
-        for c in cand[1:]:
-            if c - disc[-1] >= self.min_sep:
-                disc.append(c)
-        disc = np.array(disc)
+            # keep only the first chunk_size - m + 1 entries
+            valid_len = len(chunk) - self.m + 1
+            mp_valid = mp[:valid_len]
 
-        # 4) Temporal clustering
-        events = self._clusters(disc)
 
-        return {"mp": mp, "scores": self.mp_to_window_scores(mp, self.m), "discords": disc, "events": events}
+            # threshold
+            thr = np.percentile(mp_valid, self.percentile)
+            cand = np.where(mp_valid >= thr)[0]
+
+            if len(cand) > 0:
+                disc = [cand[0]]
+                for c in cand[1:]:
+                    if c - disc[-1] >= self.min_sep:
+                        disc.append(c)
+                disc = np.array(disc)
+                events = self._clusters(disc)
+
+                # shift to global index space
+                disc += offset
+                events += offset
+            else:
+                disc = np.array([])
+                events = np.array([])
+
+            all_discords.append(disc)
+            all_events.append(events)
+
+            all_mp.append(mp_valid)
+            offset += valid_len
+
+        # ----- KEY FIX -----
+        # concat MP globally first
+        mp_full = np.concatenate(all_mp)
+
+        # compute window scores ONCE based on the full MP
+        window_scores = self.mp_to_window_scores(mp_full, self.m)
+
+        return {
+            "mp": mp_full,
+            "scores": window_scores,
+            "discords": np.concatenate(all_discords) if all_discords else np.array([]),
+            "events": np.concatenate(all_events) if all_events else np.array([])
+        }
+
+    @staticmethod
+    def chunk_timeseries(ts, chunk_size, m):
+        overlap = m - 1
+        chunks = []
+        start = 0
+        T = len(ts)
+
+        while start < T:
+            end = min(start + chunk_size + overlap, T)
+            if end - start < chunk_size:
+                return chunks
+            chunks.append(ts[start:end])
+            start += chunk_size
+
+        return chunks

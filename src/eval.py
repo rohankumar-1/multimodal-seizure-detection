@@ -8,6 +8,9 @@ import matplotlib.pyplot as plt
 
 from typing import Literal
 
+from src.models.matrixprofile import MatrixProfile
+
+
 VALIDATION_METRICS = Literal['youdens_j', 'accuracy', 'f1', 'precision', 'recall']
 
 def find_best_threshold(model, valloader: DataLoader, metric: VALIDATION_METRICS = 'youdens_j', device: str = "cpu") -> float:
@@ -53,7 +56,6 @@ def find_best_threshold(model, valloader: DataLoader, metric: VALIDATION_METRICS
                 score = precision_score(all_labels, preds)
             elif metric == 'recall':
                 score = recall_score(all_labels, preds)
-                
             if score > best_score:
                 best_score = score
                 best_threshold = thr
@@ -106,7 +108,7 @@ def evaluate_nn(model, data_loader: DataLoader, threshold=0.5, device: str = "cp
 
 
 
-def evaluate_svm(model, data_loader: DataLoader, device: str = "cpu") -> dict:
+def evaluate_svm(model, data_loader: DataLoader, threshold=0.5, device: str = "cpu") -> dict:
     """
     Evaluate an SVM (or any sklearn classifier) using DataLoader batches.
     """
@@ -122,10 +124,10 @@ def evaluate_svm(model, data_loader: DataLoader, device: str = "cpu") -> dict:
             features = torch.cat([ecg, eeg], dim=1)   # Example: concat features
             features = features.cpu().numpy()
 
-            preds = model.predict(features)
             probs = model.predict_proba(features)[:, 1]
+            preds = probs > threshold
 
-            all_labels.append(labels.numpy())
+            all_labels.append(labels)
             all_preds.append(preds)
             all_probs.append(probs)
 
@@ -152,7 +154,10 @@ def evaluate_svm(model, data_loader: DataLoader, device: str = "cpu") -> dict:
     }
 
 
-def evaluate_matrixprofile(mp, preprocess_fn, data_paths: list[str] = [], target='binary_label', plot_run=True) -> dict:
+def evaluate_matrixprofile(mp: MatrixProfile, preprocess_fn, data_paths: list[str] = [], chunk_size=512, target='binary_label', plot_run=True) -> dict:
+    """
+    Evaluate a matrix profile model on ECG data. Runs the unsupervised method on a set of data. 
+    """
     all_labels = []
     all_preds = []
     all_probs = []
@@ -160,19 +165,21 @@ def evaluate_matrixprofile(mp, preprocess_fn, data_paths: list[str] = [], target
     for data_path in tqdm(data_paths):
         data = np.load(data_path, allow_pickle=True)
         ecg = data['ecg']
-        target = data[target]
+        targets = data[target]
 
         ecg = preprocess_fn(ecg)
 
-        mp = mp.predict(ecg)
+        ecg_chunks = MatrixProfile.chunk_timeseries(ts=ecg, chunk_size=chunk_size, m=mp.m)
+        out = mp.predict(chunks=ecg_chunks)
 
-        all_labels.append(target)
-        all_preds.append(mp['events'])
-        all_probs.append(mp['mp'])
+        all_labels.append(targets)
+        all_preds.append(out['events'])
+        all_probs.append(out['scores'])
 
 
     all_labels = np.concatenate(all_labels)
     all_preds = np.concatenate(all_preds)
+    all_probs = np.concatenate(all_probs)
 
     auc = roc_auc_score(all_labels, all_probs)
     acc = accuracy_score(all_labels, all_preds)

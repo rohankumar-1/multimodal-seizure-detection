@@ -117,3 +117,25 @@ class SupervisedMultimodalDataset(Dataset):
 
         return sample, self.labels[idx]
 
+
+class SequentialMultimodalDataset:
+
+    def __init__(self, file_paths: list[str], target='binary_label'):
+        self.file_paths = file_paths
+
+        self.ecg = []
+        self.eeg = []
+        self.targets = []
+        for file_path in file_paths:
+            data = np.load(file_path, allow_pickle=True)
+            self.ecg.append(data['ecg'])
+            self.eeg.append(data['eeg'])
+            self.targets.append(data[target])
+
+    def __len__(self):
+        return len(self.file_paths)
+
+    def __iter__(self):
+        return iter([(self.ecg[i], self.eeg[i], self.targets[i]) for i in range(len(self))])
+
+        

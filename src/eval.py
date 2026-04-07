@@ -154,7 +154,7 @@ def evaluate_svm(model, data_loader: DataLoader, threshold=0.5, device: str = "c
     }
 
 
-def evaluate_matrixprofile(mp: MatrixProfile, preprocess_fn, data_paths: list[str] = [], chunk_size=512, target='binary_label', plot_run=True) -> dict:
+def evaluate_matrixprofile(mp: MatrixProfile, preprocess_fn, data_paths: list[str] = [], target='binary_label', plot_run=True) -> dict:
     """
     Evaluate a matrix profile model on ECG data. Runs the unsupervised method on a set of data. 
     """
@@ -169,12 +169,15 @@ def evaluate_matrixprofile(mp: MatrixProfile, preprocess_fn, data_paths: list[st
 
         ecg = preprocess_fn(ecg)
 
-        ecg_chunks = MatrixProfile.chunk_timeseries(ts=ecg, chunk_size=chunk_size, m=mp.m)
-        out = mp.predict(chunks=ecg_chunks)
+        print(ecg.shape)
+
+        out = mp.predict(ecg)
 
         all_labels.append(targets)
         all_preds.append(out['events'])
         all_probs.append(out['scores'])
+
+        print(out['events'].shape, out['scores'].shape)
 
 
     all_labels = np.concatenate(all_labels)

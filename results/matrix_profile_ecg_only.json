@@ -1,0 +1,13 @@
+{
+  "metrics": {
+    "auc_score": 0.7594400646961607,
+    "accuracy": 0.7485590778097982,
+    "f1": 0.45947341249354673,
+    "precision": 0.3580048270313757,
+    "recall": 0.6412103746397695
+  },
+  "n_files": 1,
+  "mp_m": 80,
+  "mp_percentile": 95.0,
+  "target": "binary_label"
+}

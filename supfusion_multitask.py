@@ -35,12 +35,14 @@ from sklearn.metrics import (
     roc_curve,
 )
 from torch import nn
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 
 from multimodal.fusion import ConcatFusion
 from multimodal.model import MultimodalModel
-from multimodal.tasks import ClassificationTask
+from multimodal.heads import M3HHead
+from multimodal.tasks import BinaryClassTask, RegressionTask, MultiClassTask
 from multimodal.train import Trainer, TrainerConfig, iter_training_parameters
+from preprocess import MultitaskFusionDataset, collate_multitask_fusion
 
 # --- Edit these ---
 TRAIN_NPZ = "data/processed_2s_128Hz/train.npz"
@@ -49,8 +51,7 @@ TEST_NPZ = "data/processed_2s_128Hz/test.npz"
 BATCH_SIZE = 32
 LR = 1e-4
 EMBED_DIM = 32
-NUM_CLASSES = 2  # binary seizure label -> CrossEntropy
-LABEL_KEY_IN_BATCH = "y"  # must match ClassificationTask label key
+LABEL_KEYS_IN_BATCH = ["binary_label", "lateralization", "label", "localization", "vigilance", "seizure_duration_sec"]  # must match ClassificationTask label key
 FUSION_MODALITY_ORDER: tuple[str, ...] = ("eeg", "ecg")
 
 # Task names are the keys returned by the head.
@@ -67,31 +68,6 @@ OUT_DIR = "runs/supfusion_multitask"
 CKPT_PATH = os.path.join(OUT_DIR, "supfusion_multitask_last.pt")
 RESULTS_JSON = os.path.join(OUT_DIR, "supfusion_multitask_eval.json")
 # ------------------
-
-
-class MultiHeadMLP(nn.Module):
-    """Multiple classification heads after fusion."""
-
-    def __init__(
-        self,
-        input_dim: int,
-        hidden_dim: int,
-        output_dim: int,
-        task_names: tuple[str, ...],
-        dropout: float = 0.1,
-    ):
-        super().__init__()
-        self.task_names = task_names
-        self.shared = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-        )
-        self.heads = nn.ModuleDict({name: nn.Linear(hidden_dim, output_dim) for name in task_names})
-
-    def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
-        h = self.shared(x)
-        return {name: head(h) for name, head in self.heads.items()}
 
 
 class EEGEncoder(nn.Module):
@@ -154,50 +130,6 @@ class ECGEncoder(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         h = self.net(x).squeeze(-1)
         return self.proj(h)
-
-
-class SupFusionDictDataset(Dataset):
-    """
-    Loads processed npz windows. Each sample is a dict with modality tensors and a label,
-    suitable for multimodal trainers that expect batch dicts (eeg, ecg, y).
-    """
-
-    def __init__(
-        self,
-        npz_path: str,
-        label_key: str = "y",
-        source_label_key: str = "binary_label",
-    ):
-        data = np.load(npz_path, allow_pickle=True)
-        self.eeg = torch.tensor(np.asarray(data["eeg"]), dtype=torch.float32)
-        self.ecg = torch.tensor(np.asarray(data["ecg"]), dtype=torch.float32)
-        labels = np.asarray(data[source_label_key])
-        self.labels = torch.tensor(labels, dtype=torch.long)
-        if self.labels.ndim > 1:
-            self.labels = self.labels.squeeze(-1)
-        self.label_key = label_key
-
-        n = min(self.eeg.shape[0], self.ecg.shape[0], self.labels.shape[0])
-        self.eeg = self.eeg[:n]
-        self.ecg = self.ecg[:n]
-        self.labels = self.labels[:n]
-
-    def __len__(self) -> int:
-        return self.eeg.shape[0]
-
-    def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:  # ty:ignore[invalid-method-override]
-        return {
-            "eeg": self.eeg[idx],
-            "ecg": self.ecg[idx],
-            self.label_key: self.labels[idx],
-        }
-
-
-def collate_supfusion(batch: list[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:
-    if not batch:
-        return {}
-    keys = batch[0].keys()
-    return {k: torch.stack([b[k] for b in batch], dim=0) for k in keys}
 
 
 def _unwrap_predictions(raw: Any) -> dict[str, torch.Tensor]:
@@ -299,29 +231,29 @@ def evaluate_binary_threshold(
 
 def build_loaders() -> tuple[DataLoader, DataLoader, DataLoader]:
     """Train, val, test — `SupFusionDictDataset` + `collate_supfusion` (dict with eeg, ecg, y)."""
-    train_ds = SupFusionDictDataset(TRAIN_NPZ, label_key=LABEL_KEY_IN_BATCH, source_label_key="binary_label")
-    val_ds = SupFusionDictDataset(VAL_NPZ, label_key=LABEL_KEY_IN_BATCH, source_label_key="binary_label")
-    test_ds = SupFusionDictDataset(TEST_NPZ, label_key=LABEL_KEY_IN_BATCH, source_label_key="binary_label")
+    train_ds = MultitaskFusionDataset(TRAIN_NPZ, label_keys=LABEL_KEYS_IN_BATCH)
+    val_ds = MultitaskFusionDataset(VAL_NPZ, label_keys=LABEL_KEYS_IN_BATCH)
+    test_ds = MultitaskFusionDataset(TEST_NPZ, label_keys=LABEL_KEYS_IN_BATCH)
     train_loader = DataLoader(
         train_ds,
         batch_size=BATCH_SIZE,
         shuffle=True,
         drop_last=False,
-        collate_fn=collate_supfusion,
+        collate_fn=collate_multitask_fusion,
     )
     val_loader = DataLoader(
         val_ds,
         batch_size=BATCH_SIZE,
         shuffle=False,
         drop_last=False,
-        collate_fn=collate_supfusion,
+        collate_fn=collate_multitask_fusion,
     )
     test_loader = DataLoader(
         test_ds,
         batch_size=BATCH_SIZE,
         shuffle=False,
         drop_last=False,
-        collate_fn=collate_supfusion,
+        collate_fn=collate_multitask_fusion,
     )
     return train_loader, val_loader, test_loader
 
@@ -339,7 +271,6 @@ def save_checkpoint(
             "eeg_ch": eeg_ch,
             "ecg_ch": ecg_ch,
             "embed_dim": EMBED_DIM,
-            "num_classes": NUM_CLASSES,
             "tasks": list(ALL_TASKS),
         },
         path,
@@ -363,10 +294,19 @@ def main() -> None:
     fusion = ConcatFusion()
     fusion_out_dim = EMBED_DIM * 2
 
+    OUT_DIMS = {
+        'binary_label': 1,
+        'lateralization': 4,
+        'label': 2,
+        'localization': 2,
+        'vigilance': 2,
+        'seizure_duration_sec': 1,
+    }
+
     model = MultimodalModel(
         encoders=encoders,
         fusion=fusion,
-        head=MultiHeadMLP(fusion_out_dim, EMBED_DIM, NUM_CLASSES, task_names=ALL_TASKS),
+        head=M3HHead(fusion_out_dim, attn_dim=EMBED_DIM, out_dims=OUT_DIMS),
         fusion_modality_order=list(FUSION_MODALITY_ORDER),
     )
 

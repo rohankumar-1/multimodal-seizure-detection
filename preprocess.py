@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Union
+from typing import Union, Callable
 
 import numpy as np
 import torch
@@ -108,9 +108,9 @@ def preprocess_three_npz(
     p_train = out / train_out
     p_val = out / val_out
     p_test = out / test_out
-    np.savez(p_train, eeg=eeg_tr.numpy(), ecg=ecg_tr.numpy(), binary_label=train["binary_label"])
-    np.savez(p_val, eeg=eeg_va.numpy(), ecg=ecg_va.numpy(), binary_label=val["binary_label"])
-    np.savez(p_test, eeg=eeg_te.numpy(), ecg=ecg_te.numpy(), binary_label=test["binary_label"])
+    np.savez(p_train, eeg=eeg_tr.numpy(), ecg=ecg_tr.numpy(), binary_label=train["binary_label"], lateralization=train["lateralization"], label=train["label"], localization=train["localization"], vigilance=train["vigilance"], seizure_duration_sec=train["seizure_duration_sec"])
+    np.savez(p_val, eeg=eeg_va.numpy(), ecg=ecg_va.numpy(), binary_label=val["binary_label"], lateralization=val["lateralization"], label=val["label"], localization=val["localization"], vigilance=val["vigilance"], seizure_duration_sec=val["seizure_duration_sec"])
+    np.savez(p_test, eeg=eeg_te.numpy(), ecg=ecg_te.numpy(), binary_label=test["binary_label"], lateralization=test["lateralization"], label=test["label"], localization=test["localization"], vigilance=test["vigilance"], seizure_duration_sec=test["seizure_duration_sec"])
     return str(p_train), str(p_val), str(p_test)
 
 
@@ -160,6 +160,62 @@ class SequentialMultimodalDataset:
 
     def __iter__(self):
         return iter([(self.ecg[i], self.eeg[i], self.targets[i]) for i in range(len(self))])
+
+
+def collate_multitask_fusion(batch: list[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:
+    if not batch:
+        return {}
+    keys = batch[0].keys()
+    return {k: torch.stack([b[k] for b in batch], dim=0) for k in keys}
+
+
+class MultitaskFusionDataset(Dataset):
+    """
+    Loads processed npz windows. Each sample is a dict with modality tensors and a label,
+    suitable for multimodal trainers that expect batch dicts (eeg, ecg, y).
+    """
+
+    def __init__(
+        self,
+        npz_path: str,
+        eeg_transform: Callable | None = None,
+        ecg_transform: Callable | None = None,
+        label_keys: list[str] = ["y"],
+    ):
+        data = np.load(npz_path, allow_pickle=True)
+        self.eeg = torch.tensor(np.asarray(data["eeg"]), dtype=torch.float32)
+        self.ecg = torch.tensor(np.asarray(data["ecg"]), dtype=torch.float32)
+        self.label_keys = label_keys
+        self.labels = {label_key: torch.tensor(np.asarray(data[label_key]), dtype=torch.long) for label_key in self.label_keys}
+
+        n = min(self.eeg.shape[0], self.ecg.shape[0], *[d.shape[0] for d in self.labels.values()])
+        self.eeg = self.eeg[:n]
+        self.ecg = self.ecg[:n]
+        for label_key in self.label_keys:
+            self.labels[label_key] = self.labels[label_key][:n]
+
+        self.eeg_transform = eeg_transform
+        self.ecg_transform = ecg_transform
+
+    def __len__(self) -> int:
+        return self.eeg.shape[0]
+
+    def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:  # ty:ignore[invalid-method-override]
+
+        eeg = self.eeg[idx]
+        ecg = self.ecg[idx]
+        labels = {label_key: self.labels[label_key][idx] for label_key in self.label_keys}
+    
+        if self.eeg_transform:
+            eeg = self.eeg_transform(eeg)
+        if self.ecg_transform:
+            ecg = self.ecg_transform(ecg)
+
+        return {
+            "eeg": eeg,
+            "ecg": ecg,
+            **labels,
+        }
 
 
 if __name__ == "__main__":

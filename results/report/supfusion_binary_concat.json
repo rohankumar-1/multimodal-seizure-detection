@@ -1,0 +1,22 @@
+{
+  "threshold_youden": 0.0552402101457119,
+  "training_stopped_early": true,
+  "val": {
+    "auc_score": 0.833879037751498,
+    "accuracy": 0.7892628024760833,
+    "f1": 0.5845757898473554,
+    "precision": 0.48252875247234633,
+    "recall": 0.7413618458075408
+  },
+  "test": {
+    "auc_score": 0.8490168405185659,
+    "accuracy": 0.8177233429394812,
+    "f1": 0.5645438898450946,
+    "precision": 0.4690181124880839,
+    "recall": 0.7089337175792507
+  },
+  "checkpoint": "runs/supfusion/supfusion_last.pt",
+  "train_npz": "data/processed_2s_128Hz/train.npz",
+  "val_npz": "data/processed_2s_128Hz/val.npz",
+  "test_npz": "data/processed_2s_128Hz/test.npz"
+}

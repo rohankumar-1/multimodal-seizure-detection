@@ -1,0 +1,90 @@
+{
+  "n_eval": 837,
+  "per_class": [
+    706,
+    131
+  ],
+  "mi_critic_batch_mean": {
+    "infonce_x1x2": -0.15092016543660844,
+    "club_x1x2": 0.00872290985924857,
+    "infonce_xy_eeg": 0.10887388246400016,
+    "infonce_xy_ecg": 0.28011901463781086,
+    "infonce_xy": 0.388992897101811,
+    "infonce_x1x2_cond": -0.4157496179853167,
+    "club_x1x2_cond": 1.0028101376124792,
+    "pair_infonce_x1x2": -0.15092016543660844,
+    "pair_club_x1x2": 0.00872290985924857,
+    "pair_infonce_x1x2_cond": -0.4157496179853167,
+    "pair_club_x1x2_cond": 1.0028101376124792
+  },
+  "linear_probes": {
+    "eeg_backbone": {
+      "dim": 32,
+      "linear_probe_auc": 0.8967207154750856
+    },
+    "ecg_backbone": {
+      "dim": 32,
+      "linear_probe_auc": 0.9452050180698667
+    },
+    "eeg_proj_infonce_x1x2": {
+      "dim": 32,
+      "linear_probe_auc": 0.8725089723241755
+    },
+    "ecg_proj_infonce_x1x2": {
+      "dim": 32,
+      "linear_probe_auc": 0.9413657085468093
+    },
+    "eeg_proj_club_x1x2": {
+      "dim": 32,
+      "linear_probe_auc": 0.8482478675166719
+    },
+    "ecg_proj_club_x1x2": {
+      "dim": 32,
+      "linear_probe_auc": 0.9488029691555813
+    },
+    "eeg_proj_infonce_xy": {
+      "dim": 32,
+      "linear_probe_auc": 0.8698469290617925
+    },
+    "ecg_proj_infonce_xy": {
+      "dim": 32,
+      "linear_probe_auc": 0.9256450810091806
+    },
+    "eeg_proj_infonce_x1x2_cond": {
+      "dim": 32,
+      "linear_probe_auc": 0.9036349047386907
+    },
+    "ecg_proj_infonce_x1x2_cond": {
+      "dim": 32,
+      "linear_probe_auc": 0.9391175120472892
+    },
+    "eeg_proj_club_x1x2_cond": {
+      "dim": 32,
+      "linear_probe_auc": 0.8624560419436058
+    },
+    "ecg_proj_club_x1x2_cond": {
+      "dim": 32,
+      "linear_probe_auc": 0.9424172868534072
+    },
+    "joint_concat": {
+      "dim": 320,
+      "linear_probe_auc": 0.9866780444644794
+    }
+  },
+  "task": "lateralization",
+  "label_key": "lateralization",
+  "keep_classes_original": [
+    2,
+    3
+  ],
+  "eval_npz": "/Users/roku/academic/6.S985/multimodal-seizure-detection/data/processed_2s_128Hz/test.npz",
+  "factorcl_ckpt": "/Users/roku/academic/6.S985/multimodal-seizure-detection/runs/factorcl_lateralization_kfold_seed0_k5_joint/fold0/factorcl_best_val_auc.pt",
+  "num_streams": 2,
+  "bucket_roles": {
+    "infonce_x1x2": "InfoNCE lower bound on shared cross-view information I(X_1;X_2)",
+    "club_x1x2": "CLUB upper bound on view-private information (minimized in main loss)",
+    "infonce_xy": "InfoNCE lower bound on view\u2013label information I(X;Y), summed over views",
+    "infonce_x1x2_cond": "Shared cross-view information conditioned on label",
+    "club_x1x2_cond": "Private cross-view information conditioned on label"
+  }
+}

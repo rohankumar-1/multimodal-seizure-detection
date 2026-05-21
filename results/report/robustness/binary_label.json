@@ -1,0 +1,277 @@
+{
+  "label": "binary_label",
+  "keep_classes_original": null,
+  "eval_npz": "/Users/roku/academic/6.S985/multimodal-seizure-detection/data/processed_2s_128Hz/test.npz",
+  "n_eval": 8328,
+  "per_class": [
+    6940,
+    1388
+  ],
+  "seed": 0,
+  "factorcl": {
+    "ckpt": "/Users/roku/academic/6.S985/multimodal-seizure-detection/runs/factorcl_binary_label_kfold_seed0_k5/fold0/factorcl_best_val_auc.pt",
+    "embed_dim": 32,
+    "num_classes": 2,
+    "label_key": "binary_label",
+    "keep_classes_original": [
+      0,
+      1
+    ]
+  },
+  "supfusion": {
+    "ckpt": "/Users/roku/academic/6.S985/multimodal-seizure-detection/runs/supfusion/supfusion_last_test.pt",
+    "head_kind": "MLP",
+    "fusion_type": "bilinear",
+    "modality_order": [
+      "eeg",
+      "ecg"
+    ],
+    "fused_dim": 32,
+    "split_eeg_channels": false,
+    "embed_dim": 32,
+    "num_classes": 2,
+    "keep_classes_original": null
+  },
+  "per_mask": {
+    "none": {
+      "factorcl": {
+        "classifier_auc": 0.905770540408109,
+        "probes": {
+          "eeg_backbone": {
+            "dim": 32,
+            "auc": 0.9189666103341174
+          },
+          "eeg_proj_infonce_x1x2": {
+            "dim": 32,
+            "auc": 0.9174428116346487
+          },
+          "eeg_proj_club_x1x2": {
+            "dim": 32,
+            "auc": 0.9126019560136076
+          },
+          "eeg_proj_infonce_xy": {
+            "dim": 32,
+            "auc": 0.9185264298054996
+          },
+          "eeg_proj_infonce_x1x2_cond": {
+            "dim": 32,
+            "auc": 0.9203747269665203
+          },
+          "eeg_proj_club_x1x2_cond": {
+            "dim": 32,
+            "auc": 0.9045278892523887
+          },
+          "ecg_backbone": {
+            "dim": 32,
+            "auc": 0.897046223652171
+          },
+          "ecg_proj_infonce_x1x2": {
+            "dim": 32,
+            "auc": 0.8924188118579931
+          },
+          "ecg_proj_club_x1x2": {
+            "dim": 32,
+            "auc": 0.8568923275636818
+          },
+          "ecg_proj_infonce_xy": {
+            "dim": 32,
+            "auc": 0.8912305384939128
+          },
+          "ecg_proj_infonce_x1x2_cond": {
+            "dim": 32,
+            "auc": 0.8911358192755816
+          },
+          "ecg_proj_club_x1x2_cond": {
+            "dim": 32,
+            "auc": 0.8757360087439572
+          },
+          "joint_concat": {
+            "dim": 320,
+            "auc": 0.9589149851791181
+          }
+        }
+      },
+      "supfusion": {
+        "classifier_auc": 0.8606127345132009,
+        "probes": {
+          "eeg_z": {
+            "dim": 32,
+            "auc": 0.888943714928909
+          },
+          "ecg_z": {
+            "dim": 32,
+            "auc": 0.8253410041554454
+          },
+          "fused": {
+            "dim": 32,
+            "auc": 0.8796914829272258
+          },
+          "head_hidden": {
+            "dim": 32,
+            "auc": 0.8675460821534097
+          }
+        }
+      }
+    },
+    "mask_ecg": {
+      "factorcl": {
+        "classifier_auc": 0.8593728977900322,
+        "probes": {
+          "eeg_backbone": {
+            "dim": 32,
+            "auc": 0.9189666103341174
+          },
+          "eeg_proj_infonce_x1x2": {
+            "dim": 32,
+            "auc": 0.9174428116346487
+          },
+          "eeg_proj_club_x1x2": {
+            "dim": 32,
+            "auc": 0.9126019560136076
+          },
+          "eeg_proj_infonce_xy": {
+            "dim": 32,
+            "auc": 0.9185264298054996
+          },
+          "eeg_proj_infonce_x1x2_cond": {
+            "dim": 32,
+            "auc": 0.9203747269665203
+          },
+          "eeg_proj_club_x1x2_cond": {
+            "dim": 32,
+            "auc": 0.9045278892523887
+          },
+          "ecg_backbone": {
+            "dim": 32,
+            "auc": 0.49899239110152793
+          },
+          "ecg_proj_infonce_x1x2": {
+            "dim": 32,
+            "auc": 0.49899239110152793
+          },
+          "ecg_proj_club_x1x2": {
+            "dim": 32,
+            "auc": 0.49899239110152793
+          },
+          "ecg_proj_infonce_xy": {
+            "dim": 32,
+            "auc": 0.49899239110152793
+          },
+          "ecg_proj_infonce_x1x2_cond": {
+            "dim": 32,
+            "auc": 0.49899239110152793
+          },
+          "ecg_proj_club_x1x2_cond": {
+            "dim": 32,
+            "auc": 0.49899239110152793
+          },
+          "joint_concat": {
+            "dim": 320,
+            "auc": 0.9253575004934307
+          }
+        }
+      },
+      "supfusion": {
+        "classifier_auc": 0.8451049132539927,
+        "probes": {
+          "eeg_z": {
+            "dim": 32,
+            "auc": 0.888943714928909
+          },
+          "ecg_z": {
+            "dim": 32,
+            "auc": 0.49899239110152793
+          },
+          "fused": {
+            "dim": 32,
+            "auc": 0.8748642233125139
+          },
+          "head_hidden": {
+            "dim": 32,
+            "auc": 0.8683799593145217
+          }
+        }
+      }
+    },
+    "mask_eeg": {
+      "factorcl": {
+        "classifier_auc": 0.8429430109045004,
+        "probes": {
+          "eeg_backbone": {
+            "dim": 32,
+            "auc": 0.49899239110152793
+          },
+          "eeg_proj_infonce_x1x2": {
+            "dim": 32,
+            "auc": 0.49899239110152793
+          },
+          "eeg_proj_club_x1x2": {
+            "dim": 32,
+            "auc": 0.49899239110152793
+          },
+          "eeg_proj_infonce_xy": {
+            "dim": 32,
+            "auc": 0.49899239110152793
+          },
+          "eeg_proj_infonce_x1x2_cond": {
+            "dim": 32,
+            "auc": 0.49899239110152793
+          },
+          "eeg_proj_club_x1x2_cond": {
+            "dim": 32,
+            "auc": 0.49899239110152793
+          },
+          "ecg_backbone": {
+            "dim": 32,
+            "auc": 0.897046223652171
+          },
+          "ecg_proj_infonce_x1x2": {
+            "dim": 32,
+            "auc": 0.8924188118579931
+          },
+          "ecg_proj_club_x1x2": {
+            "dim": 32,
+            "auc": 0.8568923275636818
+          },
+          "ecg_proj_infonce_xy": {
+            "dim": 32,
+            "auc": 0.8912305384939128
+          },
+          "ecg_proj_infonce_x1x2_cond": {
+            "dim": 32,
+            "auc": 0.8911358192755816
+          },
+          "ecg_proj_club_x1x2_cond": {
+            "dim": 32,
+            "auc": 0.8757360087439572
+          },
+          "joint_concat": {
+            "dim": 320,
+            "auc": 0.9108741274024756
+          }
+        }
+      },
+      "supfusion": {
+        "classifier_auc": 0.7162659145080517,
+        "probes": {
+          "eeg_z": {
+            "dim": 32,
+            "auc": 0.49899239110152793
+          },
+          "ecg_z": {
+            "dim": 32,
+            "auc": 0.8253410041554454
+          },
+          "fused": {
+            "dim": 32,
+            "auc": 0.7974076480136547
+          },
+          "head_hidden": {
+            "dim": 32,
+            "auc": 0.7863867937683062
+          }
+        }
+      }
+    }
+  }
+}

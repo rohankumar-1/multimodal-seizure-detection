@@ -7,6 +7,6 @@ torch
 torchvision
 h5py
 mne
-pandas
 tqdm
 pyarrow
+stumpy

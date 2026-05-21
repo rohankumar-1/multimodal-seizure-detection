@@ -1,0 +1,52 @@
+{
+  "label_key": "binary_label",
+  "mode": "kfold",
+  "keep_classes_original": [
+    0,
+    1
+  ],
+  "class_id_remap_original_to_new": {
+    "0": 0,
+    "1": 1
+  },
+  "balance_train_sampler": true,
+  "train_class_counts": [
+    65200,
+    16230
+  ],
+  "threshold_youden": 0.23176883161067963,
+  "training_stopped_early": false,
+  "val": {
+    "auc_score": 0.9033985478721364,
+    "accuracy": 0.8222320463699774,
+    "f1": 0.6506419538565499,
+    "precision": 0.534750872738813,
+    "recall": 0.8306630515158985
+  },
+  "checkpoint_last": "runs/factorcl_binary_label_kfold_seed0_k5/fold0/factorcl_last.pt",
+  "checkpoint": "runs/factorcl_binary_label_kfold_seed0_k5/fold0/factorcl_best_val_auc.pt",
+  "eval_used_best_val_auc": true,
+  "train_npz": "data/processed_2s_128Hz/train.npz",
+  "val_npz": "data/processed_2s_128Hz/val.npz",
+  "test_npz": "data/processed_2s_128Hz/test.npz",
+  "max_epochs": 20,
+  "remapped_class_names": [
+    "non_seizure",
+    "seizure"
+  ],
+  "best_val_auc_pooled_selection": 0.9033985478721361,
+  "best_epoch_selection": 19,
+  "fold": 0,
+  "fold_n_splits": 5,
+  "fold_seed": 0,
+  "fold_train_n": 81430,
+  "fold_val_n": 20358,
+  "fold_val_class_counts": [
+    16301,
+    4057
+  ],
+  "fold_train_class_counts": [
+    65200,
+    16230
+  ]
+}

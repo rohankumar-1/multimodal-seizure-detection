@@ -2,13 +2,71 @@
 
 from __future__ import annotations
 
-from typing import Union, Callable
+from typing import Union, Callable, Any, cast
 
 import numpy as np
 import torch
 from scipy.signal import butter, filtfilt, iirnotch, resample
 from torch.utils.data import Dataset
 
+
+DEFAULT_LABEL_MAPS: dict[str, dict[Any, int]] = {
+    "binary_label": {
+        0: 0,
+        1: 1,
+    },
+    "lateralization": {
+        "nonseizure": 0,
+        "un": 1,
+        "left": 2,
+        "right": 3,
+        "bi": 4,
+    },
+    "label": {
+        "nonseizure": 0,
+        "sz_foc_ia_m_automatisms": 1,
+        "sz_foc_ia_nm": 2,
+        "sz_foc_ia_m_hyperkinetic": 3,
+        "sz_foc_ia_nm_behavior": 4,
+        "sz_foc_a_nm_behavior": 5,
+        "sz_foc_a_nm": 6,
+        "sz_foc_f2b": 7,
+        "sz_foc_ia": 8,
+        "sz_foc_ia_um": 9,
+        "sz_foc_ua_nm_behavior": 10,
+        "sz_foc_a_um": 11,
+        "sz_foc_ua_um": 12,
+        "sz_foc_ua_m_hyperkinetic": 13,
+        "sz_foc_a_m_hyperkinetic": 14,
+        "sz_foc_ia_m_tonic": 15,
+        "sz_foc_ua_nm": 16,
+        "sz_uo_nm": 17,
+        "sz_foc_a_m_automatisms": 18
+    },
+    "localization": {
+        "nonseizure": 0,
+        "un": 1,
+        "temp": 2,
+        "front": 3,
+        "front_temp": 4,
+        "occ": 5,
+        "temp_par": 6,
+        "front_cen_temp": 7,
+        "cen_temp": 8,
+        "temp_occ": 5,
+        "front_cen": 7,
+        "cen_temp_par": 8,
+    },
+    "vigilance": {
+        "nonseizure": 0,
+        "un": 1,
+        "awake": 2,
+        "asleep": 3,
+    },
+}
+
+# Optional: remap already-numeric class ids (after casting / categorical mapping).
+DEFAULT_CLASS_GROUPINGS: dict[str, dict[int, int]] = {}
 
 def butter_bandpass(lowcut: float, highcut: float, fs: float, order: int = 4):
     nyq = 0.5 * fs
@@ -75,6 +133,68 @@ def preprocess_signal_nn(
     )
 
 
+def _sanitize_signal_array(x: np.ndarray) -> np.ndarray:
+    """Replace NaN/Inf in EEG/ECG so the model does not propagate NaNs."""
+    x = np.asarray(x, dtype=np.float32)
+    if np.isnan(x).any() or np.isinf(x).any():
+        x = np.nan_to_num(x, nan=0.0, posinf=0.0, neginf=0.0)
+    return x
+
+
+def preprocess_labels(
+    *,
+    raw: dict,
+    label_keys: list[str],
+    label_maps: dict[str, dict[Any, int]] | None = None,
+    class_groupings: dict[str, dict[int, int]] | None = None,
+) -> dict[str, np.ndarray]:
+    """
+    Encode labels without changing window↔label alignment.
+
+    - If a label key is present in `label_maps`, we treat it as categorical and map each value
+      via `label_maps[label_key][value]`.
+    - Otherwise, we treat it as numeric and cast to int64 for downstream (optionally apply class_groupings).
+    - For regression label (seizure_duration_sec): cast to float32.
+    """
+    out: dict[str, np.ndarray] = {}
+
+    for k in label_keys:
+        if k not in raw:
+            raise KeyError(f"Label key '{k}' missing from npz.")
+        y = np.asarray(raw[k])
+        if y.ndim > 1 and y.shape[1:] == (1,):
+            y = y.reshape(-1)
+
+        if k == "seizure_duration_sec":
+            out[k] = y.astype(np.float32, copy=False)
+            continue
+
+        if label_maps and k in label_maps:
+            mapping_any = label_maps[k]
+            mapped = np.empty((y.shape[0],), dtype=np.int64)
+            for i, v in enumerate(y.tolist()):
+                if v not in mapping_any:
+                    raise ValueError(f"Unmapped value for '{k}': {v!r}. Add it to label_maps['{k}'].")
+                mapped[i] = int(mapping_any[v])
+            y = mapped
+        else:
+            if np.issubdtype(y.dtype, np.floating):
+                y = np.rint(y).astype(np.int64, copy=False)
+            else:
+                y = y.astype(np.int64, copy=False)
+
+        if class_groupings and k in class_groupings:
+            mapping = class_groupings[k]
+            y = y.copy()
+            for old, new in mapping.items():
+                y[y == int(old)] = int(new)
+
+        out[k] = y
+
+    # For compatibility with earlier code, keep return shape but with empty encoders.
+    return out
+
+
 def preprocess_three_npz(
     train_npz: str,
     val_npz: str,
@@ -87,6 +207,8 @@ def preprocess_three_npz(
     train_out: str = "train.npz",
     val_out: str = "val.npz",
     test_out: str = "test.npz",
+    label_maps: dict[str, dict[Any, int]] | None = None,
+    class_groupings: dict[str, dict[int, int]] | None = None,
 ) -> tuple[str, str, str]:
     """Load train/val/test .npz, preprocess with train stats, save three outputs. Returns paths."""
     from pathlib import Path
@@ -108,9 +230,31 @@ def preprocess_three_npz(
     p_train = out / train_out
     p_val = out / val_out
     p_test = out / test_out
-    np.savez(p_train, eeg=eeg_tr.numpy(), ecg=ecg_tr.numpy(), binary_label=train["binary_label"], lateralization=train["lateralization"], label=train["label"], localization=train["localization"], vigilance=train["vigilance"], seizure_duration_sec=train["seizure_duration_sec"])
-    np.savez(p_val, eeg=eeg_va.numpy(), ecg=ecg_va.numpy(), binary_label=val["binary_label"], lateralization=val["lateralization"], label=val["label"], localization=val["localization"], vigilance=val["vigilance"], seizure_duration_sec=val["seizure_duration_sec"])
-    np.savez(p_test, eeg=eeg_te.numpy(), ecg=ecg_te.numpy(), binary_label=test["binary_label"], lateralization=test["lateralization"], label=test["label"], localization=test["localization"], vigilance=test["vigilance"], seizure_duration_sec=test["seizure_duration_sec"])
+
+    label_keys = ["binary_label", "lateralization", "label", "localization", "vigilance", "seizure_duration_sec"]
+    y_train = preprocess_labels(raw=train, label_keys=label_keys, label_maps=label_maps, class_groupings=class_groupings)
+    y_val = preprocess_labels(raw=val, label_keys=label_keys, label_maps=label_maps, class_groupings=class_groupings)
+    y_test = preprocess_labels(raw=test, label_keys=label_keys, label_maps=label_maps, class_groupings=class_groupings)
+
+    payload_train: dict[str, Any] = {
+        "eeg": _sanitize_signal_array(eeg_tr.numpy()),
+        "ecg": _sanitize_signal_array(ecg_tr.numpy()),
+        **y_train,
+    }
+    payload_val: dict[str, Any] = {
+        "eeg": _sanitize_signal_array(eeg_va.numpy()),
+        "ecg": _sanitize_signal_array(ecg_va.numpy()),
+        **y_val,
+    }
+    payload_test: dict[str, Any] = {
+        "eeg": _sanitize_signal_array(eeg_te.numpy()),
+        "ecg": _sanitize_signal_array(ecg_te.numpy()),
+        **y_test,
+    }
+
+    np.savez(p_train, **cast(dict[str, Any], payload_train))
+    np.savez(p_val, **cast(dict[str, Any], payload_val))
+    np.savez(p_test, **cast(dict[str, Any], payload_test))
     return str(p_train), str(p_val), str(p_test)
 
 
@@ -183,10 +327,30 @@ class MultitaskFusionDataset(Dataset):
         label_keys: list[str] = ["y"],
     ):
         data = np.load(npz_path, allow_pickle=True)
-        self.eeg = torch.tensor(np.asarray(data["eeg"]), dtype=torch.float32)
-        self.ecg = torch.tensor(np.asarray(data["ecg"]), dtype=torch.float32)
+        self.eeg = torch.nan_to_num(
+            torch.tensor(np.asarray(data["eeg"]), dtype=torch.float32),
+            nan=0.0,
+            posinf=0.0,
+            neginf=0.0,
+        )
+        self.ecg = torch.nan_to_num(
+            torch.tensor(np.asarray(data["ecg"]), dtype=torch.float32),
+            nan=0.0,
+            posinf=0.0,
+            neginf=0.0,
+        )
         self.label_keys = label_keys
-        self.labels = {label_key: torch.tensor(np.asarray(data[label_key]), dtype=torch.long) for label_key in self.label_keys}
+        self.labels = {}
+        for label_key in self.label_keys:
+            arr = np.asarray(data[label_key])
+            if label_key == "seizure_duration_sec":
+                t = torch.tensor(arr, dtype=torch.float32)
+                # Match typical regression head output shape (B, 1).
+                if t.ndim == 1:
+                    t = t.unsqueeze(-1)
+                self.labels[label_key] = t
+            else:
+                self.labels[label_key] = torch.tensor(arr, dtype=torch.long)
 
         n = min(self.eeg.shape[0], self.ecg.shape[0], *[d.shape[0] for d in self.labels.values()])
         self.eeg = self.eeg[:n]
@@ -240,5 +404,7 @@ if __name__ == "__main__":
         lowcut=a.lowcut,
         highcut=a.highcut,
         notch_freq=a.notch_freq,
+        label_maps=DEFAULT_LABEL_MAPS,
+        class_groupings=DEFAULT_CLASS_GROUPINGS,
     )
     print("Wrote:", paths)

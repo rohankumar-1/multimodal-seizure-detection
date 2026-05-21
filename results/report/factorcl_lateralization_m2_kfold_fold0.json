@@ -1,0 +1,54 @@
+{
+  "label_key": "lateralization",
+  "mode": "kfold",
+  "split_eeg_channels": false,
+  "num_streams": 2,
+  "keep_classes_original": [
+    2,
+    3
+  ],
+  "class_id_remap_original_to_new": {
+    "2": 0,
+    "3": 1
+  },
+  "balance_train_sampler": true,
+  "train_class_counts": [
+    11920,
+    1142
+  ],
+  "threshold_youden": 0.40769851207733154,
+  "training_stopped_early": false,
+  "val": {
+    "auc_score": 0.9391444126343453,
+    "accuracy": 0.8750765462339253,
+    "f1": 0.5536105032822757,
+    "precision": 0.4028662420382166,
+    "recall": 0.8846153846153846
+  },
+  "checkpoint_last": "runs/factorcl_lateralization_kfold_seed0_k5_joint/fold0/factorcl_last.pt",
+  "checkpoint": "runs/factorcl_lateralization_kfold_seed0_k5_joint/fold0/factorcl_best_val_auc.pt",
+  "eval_used_best_val_auc": true,
+  "train_npz": "data/processed_2s_128Hz/train.npz",
+  "val_npz": "data/processed_2s_128Hz/val.npz",
+  "test_npz": "data/processed_2s_128Hz/test.npz",
+  "max_epochs": 20,
+  "remapped_class_names": [
+    "left",
+    "right"
+  ],
+  "best_val_auc_pooled_selection": 0.9391444126343453,
+  "best_epoch_selection": 20,
+  "fold": 0,
+  "fold_n_splits": 5,
+  "fold_seed": 0,
+  "fold_train_n": 13062,
+  "fold_val_n": 3266,
+  "fold_val_class_counts": [
+    2980,
+    286
+  ],
+  "fold_train_class_counts": [
+    11920,
+    1142
+  ]
+}

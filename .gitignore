@@ -1,6 +1,12 @@
 # project-specific
 weights/
 data/
+runs/
+results/*
+!results/report/
+!results/report/**
+.mpl_cache/
+*.code-workspace
 *.npz
 *.pt
 .DS_Store
